@@ -1,0 +1,31 @@
+# Protocol-version compatibility conformance.
+#
+# Intended to live in modelcontextprotocol/typescript-sdk. Either add this as a
+# standalone workflow, or fold the `compat` job's steps into the existing CI
+# (main.yml). It asserts that version negotiation is a set intersection:
+# overlap ⇒ success at max(overlap), disjoint ⇒ clean failure, legacy path
+# unchanged.
+name: protocol-version-compat
+
+on:
+  pull_request:
+    paths:
+      - "packages/**"
+      - "src/**"
+      - "**/negotiation.matrix.test.ts"
+      - "**/selectProtocolVersion.ts"
+  push:
+    branches: [main]
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci
+      - name: Run protocol-version negotiation conformance suite
+        run: npx vitest run test/negotiation.matrix.test.ts
