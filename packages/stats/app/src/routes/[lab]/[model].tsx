@@ -32,6 +32,7 @@ import {
   applyThemePreference,
   Footer,
   getGitHubStars,
+  githubLink,
   Header,
   isThemePreference,
   themeStorageKey,
@@ -152,7 +153,11 @@ export default function StatsModel() {
       <Meta name="twitter:description" content={modelDescription()} />
       <Meta name="twitter:image" content={statsUnfurlUrl} />
       <Meta name="twitter:image:alt" content={i18n.t("app.unfurlAlt")} />
-      <Header githubStars={githubStars() ?? "150K"} links={modelHeaderLinks()} brandHref={import.meta.env.BASE_URL} />
+      <Header
+        githubStars={githubStars() ?? githubLink.fallbackStars}
+        links={modelHeaderLinks()}
+        brandHref={import.meta.env.BASE_URL}
+      />
       <div data-component="container">
         <div data-component="content">
           <Show when={page() !== undefined} fallback={<ModelLoading />}>
@@ -345,7 +350,7 @@ function ModelHero(props: {
               <ModelHeroSparkline data={data()} />
             </span>
             <span>across last week's</span>
-            <span data-slot="model-hero-pill">OpenCode Go</span>
+            <span data-slot="model-hero-pill">OpenCode</span>
             <span>usage with</span>
             <span data-slot="model-hero-pill">{formatPercent(data().tokenShare)}</span>
             <span>of observed</span>
@@ -807,7 +812,8 @@ function ModelTrendSection(props: {
                   <div data-slot="tooltip-divider" />
                   <p>
                     <span data-slot="tooltip-label">
-                      <i data-kind={props.lineTone === "active" ? "users" : "tokens"} /> {props.rowLabel}
+                      <i data-kind={props.lineTone === "active" ? "users" : "tokens"} />
+                      <span data-slot="tooltip-name">{props.rowLabel}</span>
                     </span>
                     <b>{props.formatValue(props.value(active.point))}</b>
                   </p>
