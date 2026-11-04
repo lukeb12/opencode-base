@@ -5,11 +5,12 @@ import { ServerProvider } from "@/runtime/server/current"
 import { useGlobal } from "@/runtime/server/runtime"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { SessionPanelFrame, SessionRouteFrame } from "@/session/session-frame"
+import { ServerSignedOutPanel } from "@/session/server-unavailable-panel"
 import { LayoutProvider } from "@/shell/state/layout"
 import { SettingsSurfaceProvider } from "@/settings/surface"
 import Shell from "@/shell/shell"
 import { requireServerKey } from "./session"
-import { ExtensionAttachment } from "@/runtime/extension/root"
+import { PluginAttachment } from "@/runtime/plugin/root"
 
 export const File = lazy(() => import("@opencode/session-ui/file").then((module) => ({ default: module.File })))
 
@@ -22,6 +23,13 @@ const SettingsScreen = lazy(() => import("@/settings/shell").then((module) => ({
 const ConnectServerScreen = lazy(() =>
   import("@/servers/connect/screen").then((module) => ({ default: module.ConnectServerScreen })),
 )
+
+// The dev server and Beta only. Both are fixed at build time, so other builds, prod included, drop the import and never
+// contain the lab, its stories or knobs. Beta loads it as its own chunk, only when /components opens.
+const ComponentsLab =
+  import.meta.env.DEV || import.meta.env.VITE_OPENCODE_CHANNEL === "beta"
+    ? lazy(() => import("@/components-lab/lab"))
+    : undefined
 
 const TargetSessionRouteContent = lazy(() =>
   loadSessionRoute().then((module) => ({ default: module.TargetSessionRouteContent })),
@@ -64,6 +72,7 @@ export function AppRoutes() {
         )}
       />
       <Route path="/new-session" component={DraftRoute} />
+      {ComponentsLab && <Route path="/components" component={ComponentsLab} />}
     </Route>
   )
 }
@@ -78,7 +87,20 @@ function TargetServerRoute(props: ParentProps) {
 
   return (
     <Show when={connection()} keyed>
-      {(connection) => <ServerProvider conn={connection}>{props.children}</ServerProvider>}
+      {(connection) => (
+        <ServerProvider
+          conn={connection}
+          signedOut={
+            <div class="flex min-h-0 flex-1 px-[var(--shell-inline-inset,8px)] pb-[var(--shell-bottom-inset,8px)] pt-[var(--shell-top-inset,8px)]">
+              <SessionPanelFrame raised>
+                <ServerSignedOutPanel conn={connection} />
+              </SessionPanelFrame>
+            </div>
+          }
+        >
+          {props.children}
+        </ServerProvider>
+      )}
     </Show>
   )
 }
@@ -100,9 +122,9 @@ function AppLayout(props: ParentProps) {
     <Show when={servers.list.length > 0 && !signedOut()} fallback={<ConnectServerScreen url={signedOut()?.http.url} />}>
       <LayoutProvider>
         <SettingsSurfaceProvider>
-          <ExtensionAttachment>
+          <PluginAttachment>
             <Shell>{props.children}</Shell>
-          </ExtensionAttachment>
+          </PluginAttachment>
         </SettingsSurfaceProvider>
       </LayoutProvider>
     </Show>

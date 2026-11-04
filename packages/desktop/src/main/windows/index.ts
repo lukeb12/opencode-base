@@ -16,16 +16,18 @@ import {
   setDockIcon,
   setPinchZoomEnabled,
   setTitlebar,
-  setZoomFactor,
+  setTrafficLightsPosition,
+  setZoomLevel,
   updateTitlebar,
   windowAppearance,
+  wireFocus,
   wireFullscreen,
   wireZoom,
 } from "./appearance"
 import { registerRendererProtocol, setProtocolReporter } from "./protocol"
 import { loadWindow } from "./scheme"
 import { createWindowRegistry } from "./registry"
-import { makeWindowRecovery } from "./recovery"
+import { windowRecovery } from "./recovery"
 import { takeEarlyWindow, type EarlyWindow } from "./early"
 import { manageWindowState, readWindowState, resolveWindowState, windowStateFile } from "./window-state"
 import { allowRendererPermissions, wireNavigationPolicy, wireRendererHeaders } from "./security"
@@ -43,7 +45,7 @@ const registry = createWindowRegistry<BrowserWindow>({
   write: (ids) => getStore().set(WINDOW_IDS_KEY, ids),
 })
 
-const opened = new Set<(win: BrowserWindow) => void>()
+const opened = new Set<(win: BrowserWindow, id: string) => void>()
 
 let relaunchHandler = () => {
   setAppQuitting()
@@ -60,7 +62,8 @@ export {
   setDockIcon,
   setPinchZoomEnabled,
   setTitlebar,
-  setZoomFactor,
+  setTrafficLightsPosition,
+  setZoomLevel,
   updateTitlebar,
 }
 
@@ -96,13 +99,19 @@ export function getWindowByID(id: string) {
   return win
 }
 
+/** The persistent id of an app window, or undefined for popups and other native windows. */
+export function getWindowID(win: BrowserWindow) {
+  // An open window's id stays in the persisted list until it closes.
+  return registry.persisted().find((id) => registry.get(id) === win)
+}
+
 /** App windows that host the renderer, excluding popups and other native windows. */
 export function getMainWindows() {
   return registry.list().filter((win) => !win.isDestroyed())
 }
 
 /** Runs for each app window as it registers, before its renderer loads. */
-export function onMainWindow(listener: (win: BrowserWindow) => void) {
+export function onMainWindow(listener: (win: BrowserWindow, id: string) => void) {
   opened.add(listener)
 
   return () => {
@@ -114,13 +123,13 @@ export function setWindowThemeReady(win: BrowserWindow) {
   themeReady.get(win)?.()
 }
 
-export const makeMainWindows = Effect.fn("Window.make")(function* () {
+export const mainWindows = Effect.fn("Window.make")(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const paths = yield* DesktopPaths.resolve
   const storage = yield* DesktopStorage.Service
   const runFork = Effect.runForkWith(yield* Effect.context())
-  const wireWindowRecovery = yield* makeWindowRecovery
+  const wireWindowRecovery = yield* windowRecovery
 
   const restore = () => {
     // The entry module created and showed the first restored window on ready; it is adopted here,
@@ -170,6 +179,7 @@ export const makeMainWindows = Effect.fn("Window.make")(function* () {
     wireWindowRecovery(win, id, () => relaunchHandler())
     register(win, id)
     wireFullscreen(win)
+    wireFocus(win)
 
     if (!early) loadWindow(win, "index.html")
     wireZoom(win)
@@ -230,7 +240,7 @@ export const makeMainWindows = Effect.fn("Window.make")(function* () {
         ),
       )
     })
-    opened.forEach((listener) => listener(win))
+    opened.forEach((listener) => listener(win, id))
   }
 
   return { create, restore }
